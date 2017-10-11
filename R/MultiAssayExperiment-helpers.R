@@ -103,42 +103,53 @@ setMethod("mergeReplicates", "MultiAssayExperiment",
 #' measurements for rectangular data structures, returns object of the same
 #' class (endomorphic)
 setMethod("mergeReplicates", "ANY",
-    function(x, replicates = list(), simplify = BiocGenerics::mean, ...) {
-        object <- x
-        if (is.list(replicates))
-            replicates <- IRanges::LogicalList(replicates)
-        if (is(object, "SummarizedExperiment"))
-            x <- assay(object)
-        if (is(object, "ExpressionSet"))
-            x <- Biobase::exprs(object)
-        if (length(replicates)) {
-            uniqueCols <- apply(as.matrix(replicates), 2, function(cols) {
-                !any(cols)
-            })
-            repeatList <- lapply(replicates, function(reps, rectangle) {
-                if (length(reps)) {
-                    repNames <- colnames(rectangle)[reps]
-                    baseList <- as(split(rectangle[, repNames],
-                                         seq_len(nrow(x))), "List")
-                    result <- simplify(baseList, ...)
-                    result <- matrix(result, ncol = 1,
-                                     dimnames = list(NULL, repNames[[1L]]))
-                    return(result)
-                }
-            }, rectangle = x)
-            uniqueRectangle <- do.call(cbind, unname(repeatList))
-            result <- cbind(uniqueRectangle, x[, uniqueCols, drop = FALSE])
-            if (is(object, "SummarizedExperiment"))
-                assay(object) <- result
-            else if (is(object, "ExpressionSet"))
-                object <- Biobase::assayDataElementReplace(object,
-                                                           "exprs", result,
-                                                           validate = FALSE)
-            else
-                return(result)
-        }
-        return(object)
-})
+          function(x, replicates = list(), simplify = BiocGenerics::mean, ...) {
+              object <- x
+              if (is.list(replicates))
+                  replicates <- IRanges::LogicalList(replicates)
+
+              if (length(replicates)) {
+                  ## CHECK OBJECT CLASS
+                  if (is(object, "SummarizedExperiment")){
+                      x <- assay(object)
+                  }else if (is(object, "ExpressionSet")){
+                      x <- Biobase::exprs(object)
+                  }else if(is(object, "matrix")){
+                  }else{
+                      warning("Cannot merge replicates for object of class ", class(object))
+                      return(x)
+                  }
+                  
+                  uniqueCols <- apply(as.matrix(replicates), 2, function(cols) {
+                      !any(cols)
+                  })
+                  repeatList <- lapply(replicates, function(reps, rectangle) {
+                      if (length(reps)) {
+                          repNames <- colnames(rectangle)[reps]
+                          baseList <- as(split(rectangle[, repNames],
+                                               seq_len(nrow(x))), "List")
+                          result <- simplify(baseList, ...)
+                          result <- matrix(result, ncol = 1,
+                                           dimnames = list(NULL, repNames[[1L]]))
+                          return(result)
+                      }
+                  }, rectangle = x)
+                  uniqueRectangle <- do.call(cbind, unname(repeatList))
+                  result <- cbind(uniqueRectangle, x[, uniqueCols, drop = FALSE])
+                  if (is(object, "SummarizedExperiment")){
+                      object <- object[, colnames(result)]
+                      assay(object) <- result
+                  }else if (is(object, "ExpressionSet")){
+                      object <- object[, colnames(result)]
+                      object <- Biobase::assayDataElementReplace(object,
+                                                                 "exprs", result,
+                                                                 validate = FALSE)
+                  }else{
+                      return(result)
+                  }
+              }
+              return(object)
+          })
 
 #' @rdname MultiAssayExperiment-helpers
 #' @aliases longFormat
